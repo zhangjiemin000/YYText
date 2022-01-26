@@ -1056,8 +1056,8 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
 
 #pragma mark - YYTextAsyncLayerDelegate
 
+// 实现异步绘制的Task任务
 - (YYTextAsyncLayerDisplayTask *)newAsyncDisplayTask {
-    
     // capture current context
     BOOL contentsNeedFade = _state.contentsNeedFade;
     NSAttributedString *text = _innerText;

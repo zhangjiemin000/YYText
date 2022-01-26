@@ -117,12 +117,16 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
 #pragma mark - Private
 
 - (void)_displayAsync:(BOOL)async {
+    //这里的Layer Delegate是一个空的，可以指定为任意的Delegate，主要用于提供Layer的Content，
+    //有一个限制，这里的Delegate必须是layer附着的View本身，也就是说View必须实现这个Delegate
     __strong id<YYTextAsyncLayerDelegate> delegate = (id)self.delegate;
+    //获取一个Delegate，用于在后台线程中，绘制Text内容
     YYTextAsyncLayerDisplayTask *task = [delegate newAsyncDisplayTask];
-    if (!task.display) {
+    if (!task.display) {  //如果display不存在
         if (task.willDisplay) task.willDisplay(self);
         self.contents = nil;
         if (task.didDisplay) task.didDisplay(self, YES);
+        //走完流程，return
         return;
     }
     
@@ -138,7 +142,8 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
         CGFloat scale = self.contentsScale;
         CGColorRef backgroundColor = (opaque && self.backgroundColor) ? CGColorRetain(self.backgroundColor) : NULL;
         if (size.width < 1 || size.height < 1) {
-            CGImageRef image = (__bridge_retained CGImageRef)(self.contents);
+            //如果尺寸太小
+            CGImageRef image = (__bridge_retained CGImageRef) (self.contents);
             self.contents = nil;
             if (image) {
                 dispatch_async(YYTextAsyncLayerGetReleaseQueue(), ^{
@@ -149,7 +154,7 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
             CGColorRelease(backgroundColor);
             return;
         }
-        
+        //所有条件都正常
         dispatch_async(YYTextAsyncLayerGetDisplayQueue(), ^{
             if (isCancelled()) {
                 CGColorRelease(backgroundColor);
@@ -159,11 +164,13 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
             CGContextRef context = UIGraphicsGetCurrentContext();
             if (opaque && context) {
                 CGContextSaveGState(context); {
+                    //如果不存在BackgroundColor,或者backgroundColor的Alpha小于1，默认使用白色底?
                     if (!backgroundColor || CGColorGetAlpha(backgroundColor) < 1) {
                         CGContextSetFillColorWithColor(context, [UIColor whiteColor].CGColor);
                         CGContextAddRect(context, CGRectMake(0, 0, size.width * scale, size.height * scale));
                         CGContextFillPath(context);
                     }
+                    //如果存在BackgroundColor
                     if (backgroundColor) {
                         CGContextSetFillColorWithColor(context, backgroundColor);
                         CGContextAddRect(context, CGRectMake(0, 0, size.width * scale, size.height * scale));
@@ -173,6 +180,7 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
                 CGColorRelease(backgroundColor);
             }
             task.display(context, size, isCancelled);
+            //这时候检查是否取取消绘制
             if (isCancelled()) {
                 UIGraphicsEndImageContext();
                 dispatch_async(dispatch_get_main_queue(), ^{
@@ -198,6 +206,7 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
             });
         });
     } else {
+        //如果不是异步绘制
         [_sentinel increase];
         if (task.willDisplay) task.willDisplay(self);
         UIGraphicsBeginImageContextWithOptions(self.bounds.size, self.opaque, self.contentsScale);
