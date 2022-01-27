@@ -197,7 +197,7 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
     if (range) *range = highlightRange;
     return highlight;
 }
-
+//展示高亮动画
 - (void)_showHighlightAnimated:(BOOL)animated {
     if (!_highlight) return;
     if (!_highlightLayout) {

@@ -363,6 +363,7 @@ dispatch_semaphore_signal(_lock);
     return [self layoutWithContainer:container text:text range:NSMakeRange(0, text.length)];
 }
 
+///这里把传入的AttributeString打碎了，逐一的抽取各个CTLine和截断信息，包括Attachments等，供后面的绘制使用
 + (YYTextLayout *)layoutWithContainer:(YYTextContainer *)container text:(NSAttributedString *)text range:(NSRange)range {
     YYTextLayout *layout = NULL;
     CGPathRef cgPath = nil;
@@ -417,7 +418,7 @@ dispatch_semaphore_signal(_lock);
         [((NSMutableAttributedString *)text) yy_setClearColorToJoinedEmoji];
     }
     
-    layout = [[YYTextLayout alloc] _init];
+    layout = [[YYTextLayout alloc] _init]; //新建YYTextLayout，最终的绘制都会在这里
     layout.text = text;
     layout.container = container;
     layout.range = range;
@@ -426,7 +427,7 @@ dispatch_semaphore_signal(_lock);
     // set cgPath and cgPathBox
     if (container.path == nil && container.exclusionPaths.count == 0) {
         if (container.size.width <= 0 || container.size.height <= 0) goto fail;
-        CGRect rect = (CGRect) {CGPointZero, container.size };
+        CGRect rect = (CGRect) {CGPointZero, container.size }; //文本的Container
         if (needFixLayoutSizeBug) {
             constraintSizeIsExtended = YES;
             constraintRectBeforeExtended = UIEdgeInsetsInsetRect(rect, container.insets);
@@ -437,10 +438,10 @@ dispatch_semaphore_signal(_lock);
                 rect.size.height = YYTextContainerMaxSize.height;
             }
         }
-        rect = UIEdgeInsetsInsetRect(rect, container.insets);
-        rect = CGRectStandardize(rect);
-        cgPathBox = rect;
-        rect = CGRectApplyAffineTransform(rect, CGAffineTransformMakeScale(1, -1));
+        rect = UIEdgeInsetsInsetRect(rect, container.insets); //叠加insets
+        rect = CGRectStandardize(rect); //去掉负数
+        cgPathBox = rect; //容器的Rect
+        rect = CGRectApplyAffineTransform(rect, CGAffineTransformMakeScale(1, -1));  //坐标系翻转，因为CGGraphy的坐标系原点为左下角
         cgPath = CGPathCreateWithRect(rect, NULL); // let CGPathIsRect() returns true
     } else if (container.path && CGPathIsRect(container.path.CGPath, &cgPathBox) && container.exclusionPaths.count == 0) {
         CGRect rect = CGRectApplyAffineTransform(cgPathBox, CGAffineTransformMakeScale(1, -1));
@@ -489,15 +490,15 @@ dispatch_semaphore_signal(_lock);
     // create CoreText objects
     ctSetter = CTFramesetterCreateWithAttributedString((CFTypeRef)text);
     if (!ctSetter) goto fail;
-    ctFrame = CTFramesetterCreateFrame(ctSetter, YYTextCFRangeFromNSRange(range), cgPath, (CFTypeRef)frameAttrs);
+    ctFrame = CTFramesetterCreateFrame(ctSetter, YYTextCFRangeFromNSRange(range), cgPath, (CFTypeRef)frameAttrs); //创建CTFrameSetter时，需要传入attributes
     if (!ctFrame) goto fail;
     lines = [NSMutableArray new];
-    ctLines = CTFrameGetLines(ctFrame);
-    lineCount = CFArrayGetCount(ctLines);
+    ctLines = CTFrameGetLines(ctFrame); //从Frame中，获取Line
+    lineCount = CFArrayGetCount(ctLines); //获取总共有多少Line
     if (lineCount > 0) {
         lineOrigins = malloc(lineCount * sizeof(CGPoint));
         if (lineOrigins == NULL) goto fail;
-        CTFrameGetLineOrigins(ctFrame, CFRangeMake(0, lineCount), lineOrigins);
+        CTFrameGetLineOrigins(ctFrame, CFRangeMake(0, lineCount), lineOrigins); //获取Line的Origins
     }
     
     CGRect textBoundingRect = CGRectZero;
@@ -514,8 +515,8 @@ dispatch_semaphore_signal(_lock);
     // calculate line frame
     NSUInteger lineCurrentIdx = 0;
     for (NSUInteger i = 0; i < lineCount; i++) {
-        CTLineRef ctLine = CFArrayGetValueAtIndex(ctLines, i);
-        CFArrayRef ctRuns = CTLineGetGlyphRuns(ctLine);
+        CTLineRef ctLine = CFArrayGetValueAtIndex(ctLines, i); //遍历所有的文本行
+        CFArrayRef ctRuns = CTLineGetGlyphRuns(ctLine); //从当前行中，获取所有的CTRun，每一个Run表示有同一个属性的Text
         if (!ctRuns || CFArrayGetCount(ctRuns) == 0) continue;
         
         // CoreText coordinate system
@@ -527,7 +528,7 @@ dispatch_semaphore_signal(_lock);
         position.y = cgPathBox.size.height + cgPathBox.origin.y - ctLineOrigin.y;
         
         YYTextLine *line = [YYTextLine lineWithCTLine:ctLine position:position vertical:isVerticalForm];
-        CGRect rect = line.bounds;
+        CGRect rect = line.bounds; //获取Line的大小
         
         if (constraintSizeIsExtended) {
             if (isVerticalForm) {
@@ -564,7 +565,7 @@ dispatch_semaphore_signal(_lock);
         
         line.index = lineCurrentIdx;
         line.row = rowIdx;
-        [lines addObject:line];
+        [lines addObject:line]; //包装一个YYTextLine
         rowCount = rowIdx + 1;
         lineCurrentIdx ++;
         
@@ -577,7 +578,7 @@ dispatch_semaphore_signal(_lock);
     }
     
     if (rowCount > 0) {
-        if (maximumNumberOfRows > 0) {
+        if (maximumNumberOfRows > 0) { //如果超过设置的最大行数，只需要把YYTextLine数组删去就行了
             if (rowCount > maximumNumberOfRows) {
                 needTruncation = YES;
                 rowCount = maximumNumberOfRows;
@@ -590,7 +591,7 @@ dispatch_semaphore_signal(_lock);
             }
         }
         YYTextLine *lastLine = lines.lastObject;
-        if (!needTruncation && lastLine.range.location + lastLine.range.length < text.length) {
+        if (!needTruncation && lastLine.range.location + lastLine.range.length < text.length) { //如果最后一行文本，都没有大于文本本身的长度，则需要出现省略号
             needTruncation = YES;
         }
         
@@ -612,7 +613,7 @@ dispatch_semaphore_signal(_lock);
         NSInteger lastRowIdx = -1;
         CGFloat lastHead = 0;
         CGFloat lastFoot = 0;
-        for (NSUInteger i = 0, max = lines.count; i < max; i++) {
+        for (NSUInteger i = 0, max = lines.count; i < max; i++) { //对每一行添加Head和foot
             YYTextLine *line = lines[i];
             CGRect rect = line.bounds;
             if ((NSInteger)line.row != lastRowIdx) {
@@ -672,19 +673,20 @@ dispatch_semaphore_signal(_lock);
         textBoundingSize = size;
     }
     
-    visibleRange = YYTextNSRangeFromCFRange(CTFrameGetVisibleStringRange(ctFrame));
-    if (needTruncation) {
+    visibleRange = YYTextNSRangeFromCFRange(CTFrameGetVisibleStringRange(ctFrame)); //获取可视范围内的Range
+    if (needTruncation) { //如果需要截断
         YYTextLine *lastLine = lines.lastObject;
         NSRange lastRange = lastLine.range;
         visibleRange.length = lastRange.location + lastRange.length - visibleRange.location;
         
         // create truncated line
-        if (container.truncationType != YYTextTruncationTypeNone) {
+        if (container.truncationType != YYTextTruncationTypeNone) {  //如果不是截断样式无
             CTLineRef truncationTokenLine = NULL;
-            if (container.truncationToken) {
+            if (container.truncationToken) {  //拿到截断的Token，这个Token是AttributeString,意味着可以是任何的东西
                 truncationToken = container.truncationToken;
-                truncationTokenLine = CTLineCreateWithAttributedString((CFAttributedStringRef)truncationToken);
+                truncationTokenLine = CTLineCreateWithAttributedString((CFAttributedStringRef)truncationToken); //还是先创建Line
             } else {
+                //如果没有定义
                 CFArrayRef runs = CTLineGetGlyphRuns(lastLine.CTLine);
                 NSUInteger runCount = CFArrayGetCount(runs);
                 NSMutableDictionary *attrs = nil;
@@ -713,10 +715,12 @@ dispatch_semaphore_signal(_lock);
                     }
                     if (!attrs) attrs = [NSMutableDictionary new];
                 }
+                //以上，创建了截断的属性,这里用这些属性来创建截断的AttributeString
                 truncationToken = [[NSAttributedString alloc] initWithString:YYTextTruncationToken attributes:attrs];
-                truncationTokenLine = CTLineCreateWithAttributedString((CFAttributedStringRef)truncationToken);
+                truncationTokenLine = CTLineCreateWithAttributedString((CFAttributedStringRef) truncationToken);  //创建TokenLine
             }
             if (truncationTokenLine) {
+                //设置截断的类型
                 CTLineTruncationType type = kCTLineTruncationEnd;
                 if (container.truncationType == YYTextTruncationTypeStart) {
                     type = kCTLineTruncationStart;
@@ -736,7 +740,7 @@ dispatch_semaphore_signal(_lock);
                             truncatedWidth = cgPathRect.size.width;
                         }
                     }
-                    CTLineRef ctTruncatedLine = CTLineCreateTruncatedLine(ctLastLineExtend, truncatedWidth, type, truncationTokenLine);
+                    CTLineRef ctTruncatedLine = CTLineCreateTruncatedLine(ctLastLineExtend, truncatedWidth, type, truncationTokenLine); //创建真正的截断Line
                     CFRelease(ctLastLineExtend);
                     if (ctTruncatedLine) {
                         truncatedLine = [YYTextLine lineWithCTLine:ctTruncatedLine position:lastLine.position vertical:isVerticalForm];
@@ -817,7 +821,7 @@ dispatch_semaphore_signal(_lock);
         if (truncatedLine) lineBlock(truncatedLine);
     }
     
-    if (visibleRange.length > 0) {
+    if (visibleRange.length > 0) { //如果有可视的范围，则需要绘制Text
         layout.needDrawText = YES;
         
         void (^block)(NSDictionary *attrs, NSRange range, BOOL *stop) = ^(NSDictionary *attrs, NSRange range, BOOL *stop) {
@@ -831,13 +835,14 @@ dispatch_semaphore_signal(_lock);
             if (attrs[YYTextStrikethroughAttributeName]) layout.needDrawStrikethrough = YES;
             if (attrs[YYTextBorderAttributeName]) layout.needDrawBorder = YES;
         };
-        
+        //配置可视范围内的所有Attributes，用于配置当前Layout的一些自定义的属性
         [layout.text enumerateAttributesInRange:visibleRange options:NSAttributedStringEnumerationLongestEffectiveRangeNotRequired usingBlock:block];
-        if (truncatedLine) {
+        if (truncatedLine) { //同样，截断Line也需要这么干
             [truncationToken enumerateAttributesInRange:NSMakeRange(0, truncationToken.length) options:NSAttributedStringEnumerationLongestEffectiveRangeNotRequired usingBlock:block];
         }
     }
-    
+
+    //添加Attachments
     attachments = [NSMutableArray new];
     attachmentRanges = [NSMutableArray new];
     attachmentRects = [NSMutableArray new];
@@ -856,6 +861,7 @@ dispatch_semaphore_signal(_lock);
             }
         }
     }
+
     if (attachments.count == 0) {
         attachments = attachmentRanges = attachmentRects = nil;
     }
@@ -1219,10 +1225,12 @@ fail:
 
 - (NSUInteger)lineIndexForPoint:(CGPoint)point {
     if (_lines.count == 0 || _rowCount == 0) return NSNotFound;
+    //2分查找法，查找到点中的位置
     NSUInteger rowIdx = [self _rowIndexForEdge:_container.verticalForm ? point.x : point.y];
     if (rowIdx == NSNotFound) return NSNotFound;
     
     NSUInteger lineIdx0 = _lineRowsIndex[rowIdx];
+    //如果点中的是最后一行，则直接返回最后一个YYTextLine，否则就是从textLine数组对应列表中查找
     NSUInteger lineIdx1 = rowIdx == _rowCount - 1 ? _lines.count - 1 : _lineRowsIndex[rowIdx + 1] - 1;
     for (NSUInteger i = lineIdx0; i <= lineIdx1; i++) {
         CGRect bounds = ((YYTextLine *)_lines[i]).bounds;
@@ -1295,7 +1303,7 @@ fail:
         point.x -= line.position.x;
         point.y = 0;
     }
-    CFIndex idx = CTLineGetStringIndexForPosition(line.CTLine, point);
+    CFIndex idx = CTLineGetStringIndexForPosition(line.CTLine, point);  //获取CTLine中对应点的位置，idx是Range里面的序列
     if (idx == kCFNotFound) return NSNotFound;
     
     /*
@@ -1310,26 +1318,26 @@ fail:
      
      Here's a workaround.
      */
-    CFArrayRef runs = CTLineGetGlyphRuns(line.CTLine);
+    CFArrayRef runs = CTLineGetGlyphRuns(line.CTLine); //获取所有的runs
     for (NSUInteger r = 0, max = CFArrayGetCount(runs); r < max; r++) {
-        CTRunRef run = CFArrayGetValueAtIndex(runs, r);
-        CFRange range = CTRunGetStringRange(run);
-        if (range.location <= idx && idx < range.location + range.length) {
-            NSUInteger glyphCount = CTRunGetGlyphCount(run);
+        CTRunRef run = CFArrayGetValueAtIndex(runs, r);  //遍历每一个Run
+        CFRange range = CTRunGetStringRange(run); //获取Run的Range
+        if (range.location <= idx && idx < range.location + range.length) { //如果idx在这个run的范围内
+            NSUInteger glyphCount = CTRunGetGlyphCount(run); //获取字形的数量
             if (glyphCount == 0) break;
-            CFDictionaryRef attrs = CTRunGetAttributes(run);
-            CTFontRef font = CFDictionaryGetValue(attrs, kCTFontAttributeName);
-            if (!YYTextCTFontContainsColorBitmapGlyphs(font)) break;
+            CFDictionaryRef attrs = CTRunGetAttributes(run); //获取当前的属性
+            CTFontRef font = CFDictionaryGetValue(attrs, kCTFontAttributeName); //获取当前的Font
+            if (!YYTextCTFontContainsColorBitmapGlyphs(font)) break;  //如果不包含emoj的字体就不要往下遍历了
             
             CFIndex indices[glyphCount];
             CGPoint positions[glyphCount];
-            CTRunGetStringIndices(run, CFRangeMake(0, glyphCount), indices);
-            CTRunGetPositions(run, CFRangeMake(0, glyphCount), positions);
+            CTRunGetStringIndices(run, CFRangeMake(0, glyphCount), indices); //获取字形的索引
+            CTRunGetPositions(run, CFRangeMake(0, glyphCount), positions); // 获取字形的位置
             for (NSUInteger g = 0; g < glyphCount; g++) {
                 NSUInteger gIdx = indices[g];
-                if (gIdx == idx && g + 1 < glyphCount) {
+                if (gIdx == idx && g + 1 < glyphCount) {  //
                     CGFloat right = positions[g + 1].x;
-                    if (point.x < right) break;
+                    if (point.x < right) break; //如果x小于右侧,则不需要遍历了，就是idx
                     NSUInteger next = indices[g + 1];
                     do {
                         if (next == range.location + range.length) break;
@@ -1339,7 +1347,7 @@ fail:
                         } else break;
                     }
                     while (1);
-                    if (next != indices[g + 1]) idx = next;
+                    if (next != indices[g + 1]) idx = next; //只有这个条件满足，才更改idx，可能是一种特殊处理吧
                     break;
                 }
             }
@@ -1588,15 +1596,15 @@ fail:
 }
 
 - (YYTextRange *)textRangeAtPoint:(CGPoint)point {
-    NSUInteger lineIndex = [self lineIndexForPoint:point];
+    NSUInteger lineIndex = [self lineIndexForPoint:point]; //获取对应的点击的YYTextLine
     if (lineIndex == NSNotFound) return nil;
-    NSUInteger textPosition = [self textPositionForPoint:point lineIndex:[self lineIndexForPoint:point]];
+    NSUInteger textPosition = [self textPositionForPoint:point lineIndex:[self lineIndexForPoint:point]]; //获取真实的Text的位置
     if (textPosition == NSNotFound) return nil;
-    YYTextPosition *pos = [self closestPositionToPoint:point];
+    YYTextPosition *pos = [self closestPositionToPoint:point]; //获取最接近点击点的字符位置
     if (!pos) return nil;
     
     // get write direction
-    BOOL RTL = [self _isRightToLeftInLine:_lines[lineIndex] atPoint:point];
+    BOOL RTL = [self _isRightToLeftInLine:_lines[lineIndex] atPoint:point]; //如果是右往左
     CGRect rect = [self caretRectForPosition:pos];
     if (CGRectIsNull(rect)) return nil;
     
