@@ -35,15 +35,18 @@ static void YYTextTransactionSetup() {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         transactionSet = [NSMutableSet new];
+        //获取RunLoop的引用
         CFRunLoopRef runloop = CFRunLoopGetMain();
         CFRunLoopObserverRef observer;
-        
+        //创建RunLoop的Observer，当RunLoop状态为 waiting 或者Exist时，触发Selector
         observer = CFRunLoopObserverCreate(CFAllocatorGetDefault(),
                                            kCFRunLoopBeforeWaiting | kCFRunLoopExit,
                                            true,      // repeat
                                            0xFFFFFF,  // after CATransaction(2000000)
                                            YYRunLoopObserverCallBack, NULL);
+
         CFRunLoopAddObserver(runloop, observer, kCFRunLoopCommonModes);
+        //释放当前的Observer，CF表示为 Core Foundation
         CFRelease(observer);
     });
 }

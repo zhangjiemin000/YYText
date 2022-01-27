@@ -124,7 +124,7 @@
     {
         NSMutableAttributedString *one = [[NSMutableAttributedString alloc] initWithString:@"Link sssssssadasdasd"];
         one.yy_font = [UIFont boldSystemFontOfSize:30];
-        one.yy_underlineStyle = NSUnderlineStyleSingle;
+//        one.yy_underlineStyle = NSUnderlineStyleSingle;
         
         /// 1. you can set a highlight with these code
         /*
@@ -146,13 +146,13 @@
         /// 2. or you can use the convenience method
         [one yy_setTextHighlightRange:NSMakeRange(0, 4)
                                 color:[UIColor colorWithRed:0.093 green:0.492 blue:1.000 alpha:1.000]
-                      backgroundColor:[UIColor colorWithWhite:0.000 alpha:0.220]
+                      backgroundColor:[UIColor colorWithWhite:0.000 alpha:1]
                             tapAction:^(UIView *containerView, NSAttributedString *text, NSRange range, CGRect rect){
                                 [_self showMessage:[NSString stringWithFormat:@"Tap: %@",[text.string substringWithRange:range]]];
                             }];
         
         [text appendAttributedString:one];
-        [text appendAttributedString:[self padding]];
+//        [text appendAttributedString:[self padding]];
     }
     
 //    {
