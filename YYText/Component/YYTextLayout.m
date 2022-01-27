@@ -3345,6 +3345,7 @@ static void YYTextDrawDebug(YYTextLayout *layout, CGContextRef context, CGSize s
                 debug:(YYTextDebugOption *)debug
                 cancel:(BOOL (^)(void))cancel{
     @autoreleasepool {
+        //这里其实是有顺序的，界面层级决定了这里的顺序
         if (self.needDrawBlockBorder && context) {
             if (cancel && cancel()) return;
             YYTextDrawBlockBorder(self, context, size, point, cancel);
