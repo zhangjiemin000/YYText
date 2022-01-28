@@ -2232,13 +2232,14 @@ static void YYTextGetRunsMaxMetric(CFArrayRef runs, CGFloat *xHeight, CGFloat *u
 
 static void YYTextDrawRun(YYTextLine *line, CTRunRef run, CGContextRef context, CGSize size, BOOL isVertical, NSArray *runRanges, CGFloat verticalOffset) {
     CGAffineTransform runTextMatrix = CTRunGetTextMatrix(run);
+    //文本绘制的矩阵是否是没有经过变换的
     BOOL runTextMatrixIsID = CGAffineTransformIsIdentity(runTextMatrix);
     
     CFDictionaryRef runAttrs = CTRunGetAttributes(run);
     NSValue *glyphTransformValue = CFDictionaryGetValue(runAttrs, (__bridge const void *)(YYTextGlyphTransformAttributeName));
     if (!isVertical && !glyphTransformValue) { // draw run
         if (!runTextMatrixIsID) {
-            CGContextSaveGState(context);
+            CGContextSaveGState(context); //如果本身有旋转，这要把Context的变换置进去
             CGAffineTransform trans = CGContextGetTextMatrix(context);
             CGContextSetTextMatrix(context, CGAffineTransformConcat(trans, runTextMatrix));
         }
@@ -2422,8 +2423,10 @@ static void YYTextDrawBorderRects(CGContextRef context, CGSize size, YYTextBorde
         if (isVertical) {
             rect = UIEdgeInsetsInsetRect(rect, UIEdgeInsetRotateVertical(border.insets));
         } else {
+            //叠加Inset
             rect = UIEdgeInsetsInsetRect(rect, border.insets);
         }
+        //像素对齐
         rect = YYTextCGRectPixelRound(rect);
         UIBezierPath *path = [UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:border.cornerRadius];
         [path closePath];
@@ -2651,6 +2654,7 @@ static void YYTextDrawBlockBorder(YYTextLayout *layout, CGContextRef context, CG
         if (cancel && cancel()) break;
         
         YYTextLine *line = lines[l];
+        //如果截断的字段不为空，并且就是当前line，这个line就为截断line
         if (layout.truncatedLine && layout.truncatedLine.index == line.index) line = layout.truncatedLine;
         CFArrayRef runs = CTLineGetGlyphRuns(line.CTLine);
         for (NSInteger r = 0, rMax = CFArrayGetCount(runs); r < rMax; r++) {
@@ -2658,10 +2662,12 @@ static void YYTextDrawBlockBorder(YYTextLayout *layout, CGContextRef context, CG
             CFIndex glyphCount = CTRunGetGlyphCount(run);
             if (glyphCount == 0) continue;
             NSDictionary *attrs = (id)CTRunGetAttributes(run);
+            //获取绘制背景的AttributeName
             YYTextBorder *border = attrs[YYTextBlockBorderAttributeName];
             if (!border) continue;
             
             NSUInteger lineStartIndex = line.index;
+            //找到第一行？
             while (lineStartIndex > 0) {
                 if (((YYTextLine *)lines[lineStartIndex - 1]).row == line.row) lineStartIndex--;
                 else break;
@@ -2772,7 +2778,7 @@ static void YYTextDrawBorder(YYTextLayout *layout, CGContextRef context, CGSize 
                     endRunIndex = rr;
                     
                     CGPoint iRunPosition = CGPointZero;
-                    CTRunGetPositions(iRun, CFRangeMake(0, 1), &iRunPosition);
+                    CTRunGetPositions(iRun, CFRangeMake(0, 1), &iRunPosition);  //这里的Position是相对于这个iRun的，下面需要绘制的区域是相对于整个画布的
                     CGFloat ascent, descent;
                     CGFloat iRunWidth = CTRunGetTypographicBounds(iRun, CFRangeMake(0, 0), &ascent, &descent, NULL);
                     
@@ -2814,6 +2820,7 @@ static void YYTextDrawBorder(YYTextLayout *layout, CGContextRef context, CGSize 
                     }
                 } else {
                     if (fabs(rect.origin.y - curRect.origin.y) < 1) {
+                        //这里好像是要修复什么东西
                         curRect = YYTextMergeRectInSameLine(rect, curRect, isVertical);
                     } else {
                         [drawRects addObject:[NSValue valueWithCGRect:curRect]];
