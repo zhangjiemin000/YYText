@@ -1236,7 +1236,11 @@ fail:
         CGRect bounds = ((YYTextLine *)_lines[i]).bounds;
         if (CGRectContainsPoint(bounds, point)) return i;
     }
-    
+    if (!_truncatedLine) {
+        if (CGRectContainsPoint(_truncatedLine.bounds, point)) {
+            return -999;
+        }
+    }
     return NSNotFound;
 }
 

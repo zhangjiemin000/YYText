@@ -122,7 +122,7 @@
 //    }
     
     {
-        NSMutableAttributedString *one = [[NSMutableAttributedString alloc] initWithString:@"Link sssssssadasdasd"];
+        NSMutableAttributedString *one = [[NSMutableAttributedString alloc] initWithString:@"Link sssss ssada ssssaddasdasdf asdfsdsa dasdas ddasd"];
         one.yy_font = [UIFont boldSystemFontOfSize:30];
 //        one.yy_underlineStyle = NSUnderlineStyleSingle;
         
@@ -228,8 +228,17 @@
     label.top = (kiOS7Later ? 64 : 0);
     label.textAlignment = NSTextAlignmentCenter;
     label.textVerticalAlignment = YYTextVerticalAlignmentCenter;
-    label.numberOfLines = 0;
+    label.numberOfLines = 1;
     label.backgroundColor = [UIColor colorWithWhite:0.933 alpha:1.000];
+
+    NSMutableAttributedString *tokenString = [[NSMutableAttributedString alloc] initWithString:@"...更多"];
+    [tokenString addAttribute:NSForegroundColorAttributeName value:UIColor.blueColor range:NSMakeRange(3, 2)];
+    [tokenString yy_setTextHighlightRange:NSMakeRange(3, 2) color:UIColor.redColor backgroundColor:UIColor.grayColor tapAction:^(UIView *containerView, NSAttributedString *text, NSRange range, CGRect rect) {
+        label.numberOfLines = 0;
+//        [label setNeedsDisplay];
+    }];
+
+    label.truncationToken = tokenString;
     [self.view addSubview:label];
     
     /*

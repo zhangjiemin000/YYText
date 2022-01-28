@@ -1179,6 +1179,7 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
         }
         
         CGSize size = layer.bounds.size;
+        //这里的textBoundingSize是创建layout时，就已经计算好了的
         CGSize boundingSize = drawLayout.textBoundingSize;
         CGPoint point = CGPointZero;
         if (verticalAlignment == YYTextVerticalAlignmentCenter) {
