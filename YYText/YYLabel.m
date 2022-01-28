@@ -1080,8 +1080,10 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
     YYTextAsyncLayerDisplayTask *task = [YYTextAsyncLayerDisplayTask new];
     
     task.willDisplay = ^(CALayer *layer) {
+        //移除Contents的Animation
         [layer removeAnimationForKey:@"contents"];
-        
+
+        //移除残留的Attachment
         // If the attachment is not in new layout, or we don't know the new layout currently,
         // the attachment should be removed.
         for (UIView *view in attachmentViews) {
@@ -1131,6 +1133,7 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
             }
         }
         point = YYTextCGPointPixelRound(point);
+        //这里来绘制
         [drawLayout drawInContext:context size:size point:point view:nil layer:nil debug:debug cancel:isCancelled];
     };
 

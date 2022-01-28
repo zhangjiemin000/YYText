@@ -21,10 +21,11 @@ static dispatch_queue_t YYTextAsyncLayerGetDisplayQueue() {
     static dispatch_once_t onceToken;
     static int32_t counter = 0;
     dispatch_once(&onceToken, ^{
-        queueCount = (int)[NSProcessInfo processInfo].activeProcessorCount;
-        queueCount = queueCount < 1 ? 1 : queueCount > MAX_QUEUE_COUNT ? MAX_QUEUE_COUNT : queueCount;
+        queueCount = (int) [NSProcessInfo processInfo].activeProcessorCount; //本机可以提供的最大核心数
+        queueCount = queueCount < 1 ? 1 : queueCount > MAX_QUEUE_COUNT ? MAX_QUEUE_COUNT : queueCount; //最多16核，16个队列
         if ([UIDevice currentDevice].systemVersion.floatValue >= 8.0) {
             for (NSUInteger i = 0; i < queueCount; i++) {
+                //新建串行队列,后面的参数用于配置队列的优先级，这个优先级别是比较高的
                 dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
                 queues[i] = dispatch_queue_create("com.ibireme.text.render", attr);
             }
@@ -130,7 +131,7 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
         return;
     }
     
-    if (async) {
+    if (async) { //如果是异步
         if (task.willDisplay) task.willDisplay(self);
         _YYTextSentinel *sentinel = _sentinel;
         int32_t value = sentinel.value;
@@ -163,6 +164,7 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
             UIGraphicsBeginImageContextWithOptions(size, opaque, scale);
             CGContextRef context = UIGraphicsGetCurrentContext();
             if (opaque && context) {
+                //存储当前的Context,准备好当前的画布
                 CGContextSaveGState(context); {
                     //如果不存在BackgroundColor,或者backgroundColor的Alpha小于1，默认使用白色底?
                     if (!backgroundColor || CGColorGetAlpha(backgroundColor) < 1) {
@@ -179,8 +181,10 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
                 } CGContextRestoreGState(context);
                 CGColorRelease(backgroundColor);
             }
+            //丢出去，告诉实际的类，画布已经准备好了，让他们可以绘制了
             task.display(context, size, isCancelled);
-            //这时候检查是否取取消绘制
+
+            //下面就是绘制完成后，判断一些状态
             if (isCancelled()) {
                 UIGraphicsEndImageContext();
                 dispatch_async(dispatch_get_main_queue(), ^{
@@ -196,10 +200,12 @@ static dispatch_queue_t YYTextAsyncLayerGetReleaseQueue() {
                 });
                 return;
             }
+            //如果没有被取消，则抛到主线程，并把当前的Layer的Content赋值
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (isCancelled()) {
                     if (task.didDisplay) task.didDisplay(self, NO);
                 } else {
+                    //这里就给Layer赋值了
                     self.contents = (__bridge id)(image.CGImage);
                     if (task.didDisplay) task.didDisplay(self, YES);
                 }
