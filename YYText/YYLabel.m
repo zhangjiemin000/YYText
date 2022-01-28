@@ -1078,21 +1078,25 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
     
     // create display task
     YYTextAsyncLayerDisplayTask *task = [YYTextAsyncLayerDisplayTask new];
-    
+
     task.willDisplay = ^(CALayer *layer) {
-        //移除Contents的Animation
+        //移除Contents的Animation,这里的contents动画是自己加上去的fade动画
         [layer removeAnimationForKey:@"contents"];
 
         //移除残留的Attachment
         // If the attachment is not in new layout, or we don't know the new layout currently,
         // the attachment should be removed.
         for (UIView *view in attachmentViews) {
+            //如果需要更新Layout,或者是 attachmentContentsSet 不包含这个View
             if (layoutNeedUpdate || ![layout.attachmentContentsSet containsObject:view]) {
                 if (view.superview == self) {
+                    //如果这个view的superView就是自己，就移除掉
+                    //以为Attachment不同于其他绘制的部分，它是一个单独的界面，所以清理的时候需要直接从父级别中删除
                     [view removeFromSuperview];
                 }
             }
         }
+        //AttachmentLayer同View一样，也需要自己来移除
         for (CALayer *layer in attachmentLayers) {
             if (layoutNeedUpdate || ![layout.attachmentContentsSet containsObject:layer]) {
                 if (layer.superlayer == self.layer) {
@@ -1100,15 +1104,19 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
                 }
             }
         }
+        //最后清理数组
         [attachmentViews removeAllObjects];
         [attachmentLayers removeAllObjects];
     };
 
     task.display = ^(CGContextRef context, CGSize size, BOOL (^isCancelled)(void)) {
+        //这里就是显示逻辑总控制了
         if (isCancelled()) return;
         if (text.length == 0) return;
-        
+
+        //拿到当前的layout，这里的layout，可能是highlightLayout也有可能是普通的layout
         YYTextLayout *drawLayout = layout;
+        //如果需要更新，则重新生成了Layout对象
         if (layoutNeedUpdate) {
             layout = [YYTextLayout layoutWithContainer:container text:text];
             shrinkLayout = [YYLabel _shrinkLayoutWithLayout:layout];
@@ -1116,9 +1124,10 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
             layoutUpdated = YES;
             drawLayout = shrinkLayout ? shrinkLayout : layout;
         }
-        
+        //获取大小
         CGSize boundingSize = drawLayout.textBoundingSize;
         CGPoint point = CGPointZero;
+        //根据布局的样式，来决定绘制的起点
         if (verticalAlignment == YYTextVerticalAlignmentCenter) {
             if (drawLayout.container.isVerticalForm) {
                 point.x = -(size.width - boundingSize.width) * 0.5;
@@ -1132,12 +1141,14 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
                 point.y = (size.height - boundingSize.height);
             }
         }
+        //这个是像素点修正
         point = YYTextCGPointPixelRound(point);
-        //这里来绘制
+        //这里来绘制,接下来就是YYLayout的工作了
         [drawLayout drawInContext:context size:size point:point view:nil layer:nil debug:debug cancel:isCancelled];
     };
 
     task.didDisplay = ^(CALayer *layer, BOOL finished) {
+        //绘制结束时的操作
         YYTextLayout *drawLayout = layout;
         if (layoutUpdated && shrinkLayout) {
             drawLayout = shrinkLayout;
@@ -1184,12 +1195,14 @@ static dispatch_queue_t YYLabelGetReleaseQueue() {
             }
         }
         point = YYTextCGPointPixelRound(point);
+
         [drawLayout drawInContext:nil size:size point:point view:view layer:layer debug:nil cancel:NULL];
         for (YYTextAttachment *a in drawLayout.attachments) {
             if ([a.content isKindOfClass:[UIView class]]) [attachmentViews addObject:a.content];
             else if ([a.content isKindOfClass:[CALayer class]]) [attachmentLayers addObject:a.content];
         }
-        
+
+        //整体加动画
         if (contentsNeedFade) {
             CATransition *transition = [CATransition animation];
             transition.duration = kHighlightFadeDuration;
