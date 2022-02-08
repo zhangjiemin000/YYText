@@ -2630,6 +2630,7 @@ static void YYTextDrawText(YYTextLayout *layout, CGContextRef context, CGSize si
             CFArrayRef runs = CTLineGetGlyphRuns(line.CTLine);
             for (NSUInteger r = 0, rMax = CFArrayGetCount(runs); r < rMax; r++) {
                 CTRunRef run = CFArrayGetValueAtIndex(runs, r);
+                //绘制Run之前，需要指定X、Y，但是这里有点奇怪的是，同一个Line里面的绘制，即便指定多次同一个值，CTLine中的文本绘制都不会乱
                 CGContextSetTextMatrix(context, CGAffineTransformIdentity);
                 CGContextSetTextPosition(context, posX, posY);
                 YYTextDrawRun(line, run, context, size, isVertical, lineRunRanges[r], verticalOffset); //这里直接DrawRun，run绘制时不需要额外指定text
