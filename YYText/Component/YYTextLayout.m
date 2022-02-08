@@ -487,18 +487,20 @@ dispatch_semaphore_signal(_lock);
         frameAttrs[(id)kCTFrameProgressionAttributeName] = @(kCTFrameProgressionRightToLeft);
     }
     
-    // create CoreText objects
+    // create CoreText objects，创建一个FrameSetter
     ctSetter = CTFramesetterCreateWithAttributedString((CFTypeRef)text);
     if (!ctSetter) goto fail;
+    //通过setter来创建frame,这里的path可以看成是View本身的Size
     ctFrame = CTFramesetterCreateFrame(ctSetter, YYTextCFRangeFromNSRange(range), cgPath, (CFTypeRef)frameAttrs); //创建CTFrameSetter时，需要传入attributes
     if (!ctFrame) goto fail;
     lines = [NSMutableArray new];
+    //这里就可以获取frame内的ctLines，系统已经自动布局好
     ctLines = CTFrameGetLines(ctFrame); //从Frame中，获取Line
     lineCount = CFArrayGetCount(ctLines); //获取总共有多少Line
     if (lineCount > 0) {
-        lineOrigins = malloc(lineCount * sizeof(CGPoint));
+        lineOrigins = malloc(lineCount * sizeof(CGPoint)); //初始化每一行的初始位置
         if (lineOrigins == NULL) goto fail;
-        CTFrameGetLineOrigins(ctFrame, CFRangeMake(0, lineCount), lineOrigins); //获取Line的Origins
+        CTFrameGetLineOrigins(ctFrame, CFRangeMake(0, lineCount), lineOrigins); //获取Line的Origins，每一行的初始位置
     }
     
     CGRect textBoundingRect = CGRectZero;
@@ -523,12 +525,12 @@ dispatch_semaphore_signal(_lock);
         CGPoint ctLineOrigin = lineOrigins[i];
         
         // UIKit coordinate system
-        CGPoint position;
+        CGPoint position; //计算偏移，注意这里有一个坐标系的转换
         position.x = cgPathBox.origin.x + ctLineOrigin.x;
         position.y = cgPathBox.size.height + cgPathBox.origin.y - ctLineOrigin.y;
-        
+        //line的bounds，计算过程为：x为positinX，y为positionY-ascent，width是通过CTLineGetTypographicBounds来获取的，并且这个方法可以同时获取字体的ascent、leading、和descent，height就为acsent+descent的值
         YYTextLine *line = [YYTextLine lineWithCTLine:ctLine position:position vertical:isVerticalForm];
-        CGRect rect = line.bounds; //获取Line的大小
+        CGRect rect = line.bounds; //获取Line的大小,拿到一行的bounds大小
         
         if (constraintSizeIsExtended) {
             if (isVerticalForm) {
@@ -571,7 +573,7 @@ dispatch_semaphore_signal(_lock);
         
         if (i == 0) textBoundingRect = rect;
         else {
-            if (maximumNumberOfRows == 0 || rowIdx < maximumNumberOfRows) {
+            if (maximumNumberOfRows == 0 || rowIdx < maximumNumberOfRows) { //这里扩充每一行的BoundRect,这里还需要判断是否有最大行数限制
                 textBoundingRect = CGRectUnion(textBoundingRect, rect);
             }
         }
@@ -2609,11 +2611,11 @@ static void YYTextDrawLineStyle(CGContextRef context, CGFloat length, CGFloat li
 }
 
 static void YYTextDrawText(YYTextLayout *layout, CGContextRef context, CGSize size, CGPoint point, BOOL (^cancel)(void)) {
-    CGContextSaveGState(context); {
-        
-        CGContextTranslateCTM(context, point.x, point.y);
-        CGContextTranslateCTM(context, 0, size.height);
-        CGContextScaleCTM(context, 1, -1);
+    CGContextSaveGState(context); {  //保留当前的Context，是一个好习惯
+        //这里的size为UIView的Size，point为绘制的起始点，两者的坐标都是在UIKit坐标系中的
+        CGContextTranslateCTM(context, point.x, point.y); //应该是偏移起始点
+        CGContextTranslateCTM(context, 0, size.height); //偏移起始点
+        CGContextScaleCTM(context, 1, -1);// Y轴翻转,将UIView坐标系，转化为CoreText坐标系
         
         BOOL isVertical = layout.container.verticalForm;
         CGFloat verticalOffset = isVertical ? (size.width - layout.container.size.width) : 0;
@@ -2630,7 +2632,7 @@ static void YYTextDrawText(YYTextLayout *layout, CGContextRef context, CGSize si
                 CTRunRef run = CFArrayGetValueAtIndex(runs, r);
                 CGContextSetTextMatrix(context, CGAffineTransformIdentity);
                 CGContextSetTextPosition(context, posX, posY);
-                YYTextDrawRun(line, run, context, size, isVertical, lineRunRanges[r], verticalOffset);
+                YYTextDrawRun(line, run, context, size, isVertical, lineRunRanges[r], verticalOffset); //这里直接DrawRun，run绘制时不需要额外指定text
             }
             if (cancel && cancel()) break;
         }
